@@ -10,10 +10,12 @@ using OrderStateMachineSagaDemo.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddLogging(l => l.AddConsole(options => {
+builder.Logging.AddConsole(options => {
     options.IncludeScopes = true;
     options.TimestampFormat = "HH:mm:ss ";
-}));
+});
+
+
 
 builder.Services.AddDbContext<AppDbContext>(o => 
     o.UseSqlite("Data Source=sagas.db")
@@ -28,10 +30,18 @@ builder.Services.AddMassTransit(x =>
             r.UseSqlite();
         });
 
-    x.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host("rabbitmq://localhost/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+        cfg.ConfigureEndpoints(context);
+    });
 });
 
-builder.Services.AddHostedService<SimulationHostedService>();
+// builder.Services.AddHostedService<SimulationHostedService>();
 
 var host = builder.Build();
 
