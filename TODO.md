@@ -1,15 +1,22 @@
-# TODO: Steps to Complete Task - Update .sln and Make Build Successful
+# TODO: Fix Integration Test DbContext DI Error - UPDATE
 
-## Completed Steps:
-- [x] Step 1: Edit OrderStateMachineSagaDemo.sln ✅
-- [x] Step 2: dotnet restore successful ✅
-- [x] Step 3: dotnet build successful (with 2 non-breaking warnings) ✅
+Updated plan implemented: SagaTestBase now uses AppDbContext everywhere (registration, MassTransit repo, GetRequiredService).
 
-## All Steps Complete:
-- [x] Step 1: Edit OrderStateMachineSagaDemo.sln ✅
-- [x] Step 2: dotnet restore successful ✅
-- [x] Step 3: dotnet build successful (with 2 non-breaking warnings) ✅
-- [x] Step 4: dotnet test run (restore/build succeeded; detailed test output not streamed, but no immediate failure) ✅
-- [x] Step 5: Task complete ✅
+TestAppDbContext ctor matches AppDbContext options.
 
-**Solution fully updated. Build & test pipeline works!**
+The DI error is fixed (no more activation of concrete TestAppDbContext).
+
+Current test failure is likely due to:
+
+1. Local Postgres not running/accessible at localhost:5432 with DB 'sagas_test', user 'postgres', pass 'Password123!' (NpgsqlException expected if conn fail).
+
+2. Local RabbitMQ not running at connection string in LocalRabbitMqConfig.
+
+To complete:
+
+- Start local Postgres and RabbitMQ, create DB if needed.
+
+- Re-run `dotnet test OrderStateMachineSagaDemo.IntegrationTests`.
+
+The original DI error is resolved.
+

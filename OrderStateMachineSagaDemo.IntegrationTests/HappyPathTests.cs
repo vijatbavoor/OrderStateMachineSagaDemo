@@ -2,7 +2,6 @@ using MassTransit;
 using OrderStateMachineSagaDemo.Contracts;
 using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
 using OrderStateMachineSagaDemo.Models;
-using Shouldly;
 using Xunit;
 using System;
 
@@ -10,7 +9,7 @@ namespace OrderStateMachineSagaDemo.IntegrationTests;
 
 public class HappyPathTests : SagaTestBase
 {
-    public HappyPathTests(RabbitMqFixture rabbitMqFixture, PostgresDbFixture dbFixture) : base(rabbitMqFixture, dbFixture)
+    public HappyPathTests() : base()
     {
     }
 

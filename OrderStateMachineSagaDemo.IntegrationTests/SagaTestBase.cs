@@ -1,5 +1,5 @@
 using MassTransit;
-using MassTransit.Testing;
+// using MassTransit.Testing; // Removed for v9 compatibility
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,25 +16,21 @@ using System;
 
 namespace OrderStateMachineSagaDemo.IntegrationTests;
 
-public abstract class SagaTestBase : IClassFixture<RabbitMqFixture>, IClassFixture<PostgresDbFixture>, IAsyncLifetime
+public abstract class SagaTestBase : IAsyncLifetime
 {
-    protected readonly RabbitMqFixture _rabbitMqFixture;
-    protected readonly PostgresDbFixture _dbFixture;
     protected IBusControl _bus = null!;
     protected IServiceProvider _services = null!;
 
-    protected SagaTestBase(RabbitMqFixture rabbitMqFixture, PostgresDbFixture dbFixture)
+    protected SagaTestBase()
     {
-        _rabbitMqFixture = rabbitMqFixture;
-        _dbFixture = dbFixture;
     }
 
     public async Task InitializeAsync()
     {
         var services = new ServiceCollection();
 
-        services.AddDbContext<TestAppDbContext>(o =>
-            o.UseNpgsql(_dbFixture.ConnectionString)
+        services.AddDbContext<AppDbContext>(o =>
+            o.UseNpgsql(LocalPostgresConfig.ConnectionString)
              .EnableSensitiveDataLogging());
 
         services.AddMassTransit(x =>
@@ -42,31 +38,27 @@ public abstract class SagaTestBase : IClassFixture<RabbitMqFixture>, IClassFixtu
             x.AddSagaStateMachine<OrderStateMachine, OrderState>()
                 .EntityFrameworkRepository(r =>
                 {
-                    r.ExistingDbContext<TestAppDbContext>();
+                    r.ExistingDbContext<AppDbContext>();
                     r.UsePostgres();
                 });
 
             x.UsingRabbitMq((context, cfg) =>
             {
-                cfg.Host(_rabbitMqFixture.RabbitMqConnectionString);
+                cfg.Host(LocalRabbitMqConfig.ConnectionString);
                 cfg.ConfigureEndpoints(context);
             });
         });
 
-        var provider = services.BuildServiceProvider();
+        _services = services.BuildServiceProvider();
 
         // Start bus
-        _bus = provider.GetRequiredService<IBusControl>();
+        _bus = _services.GetRequiredService<IBusControl>();
         await _bus.StartAsync();
 
         // Ensure DB created
-        using var scope = provider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<TestAppDbContext>();
+        using var scope = _services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
-
-        _services = provider;
-        _bus = provider.GetRequiredService<IBusControl>();
-        await _bus.StartAsync();
     }
 
     public async Task DisposeAsync()
@@ -83,7 +75,7 @@ public abstract class SagaTestBase : IClassFixture<RabbitMqFixture>, IClassFixtu
     protected async Task<OrderState?> GetSagaState(Guid correlationId)
     {
         using var scope = _services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<TestAppDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await dbContext.OrderSagas.FindAsync(correlationId);
     }
 
