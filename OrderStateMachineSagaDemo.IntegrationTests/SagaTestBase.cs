@@ -1,17 +1,13 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 using OrderStateMachineSagaDemo.Data;
-using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
 using OrderStateMachineSagaDemo.Models;
 using OrderStateMachineSagaDemo.Services;
 using OrderStateMachineSagaDemo.StateMachines;
 using Xunit;
 using System.Diagnostics;
-using System.Threading.Tasks;
-using System;
 
 namespace OrderStateMachineSagaDemo.IntegrationTests;
 

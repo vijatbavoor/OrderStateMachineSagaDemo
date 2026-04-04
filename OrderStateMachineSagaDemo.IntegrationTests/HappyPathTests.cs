@@ -1,9 +1,5 @@
-using MassTransit;
 using OrderStateMachineSagaDemo.Contracts;
-using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
-using OrderStateMachineSagaDemo.Models;
 using Xunit;
-using System;
 
 namespace OrderStateMachineSagaDemo.IntegrationTests;
 
