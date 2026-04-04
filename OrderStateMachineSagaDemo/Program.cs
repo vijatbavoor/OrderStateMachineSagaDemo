@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,57 +9,61 @@ using OrderStateMachineSagaDemo.Models;
 using OrderStateMachineSagaDemo.Services;
 using OrderStateMachineSagaDemo.StateMachines;
 
-
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Logging.AddConsole(formatterOptions => {
-    formatterOptions.IncludeScopes = true;
-    formatterOptions.TimestampFormat = "HH:mm:ss ";
-});
-
-
-
-
-
-// Payment retry policy — swap implementation here to change retry behaviour
-builder.Services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
-builder.Services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
-builder.Services.AddSingleton<IOrderInitializService, OrderInitializService>();
-
-
-builder.Services.AddDbContext<AppDbContext>(o => 
-    o.UseSqlite("Data Source=sagas.db")
-     .EnableSensitiveDataLogging());
-
-builder.Services.AddMassTransit(x =>
+[ExcludeFromCodeCoverage]
+public class Program
 {
-    x.AddSagaStateMachine<OrderStateMachine, OrderState>()
-        .EntityFrameworkRepository(r =>
-        {
-            r.ExistingDbContext<AppDbContext>();
-            r.UseSqlite();
-        });
-
-    x.UsingRabbitMq((context, cfg) =>
+    public static async Task Main(string[] args)
     {
-        cfg.Host("rabbitmq://localhost/", h =>
-        {
-            h.Username("guest");
-            h.Password("guest");
+
+
+        var builder = Host.CreateApplicationBuilder(args);
+
+        builder.Logging.AddConsole(formatterOptions => {
+            formatterOptions.IncludeScopes = true;
+            formatterOptions.TimestampFormat = "HH:mm:ss ";
         });
-        cfg.ConfigureEndpoints(context);
-    });
-});
 
-// builder.Services.AddHostedService<SimulationHostedService>();
 
-var host = builder.Build();
+        // Payment retry policy — swap implementation here to change retry behaviour
+        builder.Services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
+        builder.Services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
+        builder.Services.AddSingleton<IOrderInitializService, OrderInitializService>();
 
-// Ensure DB created for saga repo
-using (var scope = host.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
+        builder.Services.AddDbContext<AppDbContext>(o =>
+            o.UseSqlite("Data Source=sagas.db")
+             .EnableSensitiveDataLogging());
+
+        builder.Services.AddMassTransit(x =>
+        {
+            x.AddSagaStateMachine<OrderStateMachine, OrderState>()
+                .EntityFrameworkRepository(r =>
+                {
+                    r.ExistingDbContext<AppDbContext>();
+                    r.UseSqlite();
+                });
+
+            x.UsingRabbitMq((context, cfg) =>
+            {
+                cfg.Host("rabbitmq://localhost/", h =>
+                {
+                    h.Username("guest");
+                    h.Password("guest");
+                });
+                cfg.ConfigureEndpoints(context);
+            });
+        });
+
+        // builder.Services.AddHostedService<SimulationHostedService>();
+
+        var host = builder.Build();
+
+        // Ensure DB created for saga repo
+        using (var scope = host.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            context.Database.EnsureCreated();
+        }
+
+        await host.RunAsync();
+    }
 }
-
-await host.RunAsync();
