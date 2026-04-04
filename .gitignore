@@ -441,12 +441,41 @@ $RECYCLE.BIN/
 # macOS
 .DS_Store
 
-# Comment: This project-specific additions for MassTransit Saga + SQLite demo
+# Project-specific ignores for MassTransit Saga + Docker Tests (.NET 8)
+## Databases, State & Secrets
 sagas.db
 *.db
-
-# User secrets
+*.sqlite3
 secrets.json
 *secrets*.json
 appsettings.*.json
+local.settings.json
+
+## Docker & Testcontainers
+.docker/
+!.dockerignore
+testcontainers/
+docker-compose.override.yml
+
+## Build Outputs & Tools (enhanced)
+**/[Bb]in/
+**/[Oo]bj/
+**/[Nn]ode_modules/
+*.csproj.DotSettings.user
+*.sln.DotSettings.user
+packages.lock.json
+ Directory.Build.props
+Directory.Build.targets
+
+## Logs, Coverage & Temp
+**/[Ll]ogs/
+*.log
+**/[Cc]overage*/
+*.snk
+!.env
+
+## Keep project files
+!**/*.csproj
+!**/*.sln
+!**/packages.config
 
