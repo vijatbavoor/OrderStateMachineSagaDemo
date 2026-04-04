@@ -47,7 +47,7 @@ public class OrderStateMachine :
                 })
                 .TransitionTo(Created)
                 .Then(ctx => Console.WriteLine($"Saga: Order Created for {ctx.Saga.CorrelationId}"))
-                );
+            );
 
         During(Created,
             When(StockCheckedEvent)
@@ -57,58 +57,81 @@ public class OrderStateMachine :
                     Console.WriteLine($"Saga: Stock {status} -> {nextState} for {ctx.Saga.CorrelationId}");
                 })
                 .TransitionTo(StockChecked)
-                );
+            );
 
         During(StockChecked,
             When(PaymentSucceeded)
                 .TransitionTo(PaymentCompleted)
                 .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
-                .ThenAsync(async ctx => {
-                    ctx.Saga.PaymentAttempts++;
-                    if (ctx.Saga.PaymentAttempts >= 3)
-                    {
-                        ctx.Saga.CurrentState = "Cancelled";
-                        Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})");
-                    }
-                    else
-                    {
-                        ctx.Saga.CurrentState = "PaymentPending";
-                        Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending {ctx.Saga.CorrelationId}");
-                    }
-                })
-                );
+                .Then(ctx => ctx.Saga.PaymentAttempts++)
+                .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
+                .IfElse(
+                    ctx => ctx.Saga.PaymentAttempts < 3,
+                    // PaymentAttempts < 3 → retry by transitioning to PaymentPending
+                    retry => retry
+                        .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending (retry) {ctx.Saga.CorrelationId}"))
+                        .TransitionTo(PaymentPending),
+                    // PaymentAttempts >= 3 → max retries reached, transition to Cancelled
+                    cancel => cancel
+                        .Then(ctx => Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})"))
+                        .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {
+                            OrderId = ctx.Saga.OrderId,
+                            Reason = "Max payment attempts reached",
+                            CancelledAt = DateTime.UtcNow
+                        }))
+                        .TransitionTo(Cancelled)
+                )
+            );
 
         During(PaymentPending,
             When(PaymentSucceeded)
                 .TransitionTo(PaymentCompleted)
-                .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}"))
-                );
+                .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
+            When(PaymentFailed)
+                .Then(ctx => ctx.Saga.PaymentAttempts++)
+                .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
+                .IfElse(
+                    ctx => ctx.Saga.PaymentAttempts < 3,
+                    // PaymentAttempts < 3 → stay in PaymentPending for next retry
+                    retry => retry
+                        .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending (retry) {ctx.Saga.CorrelationId}"))
+                        .TransitionTo(PaymentPending),
+                    // PaymentAttempts >= 3 → max retries reached, transition to Cancelled
+                    cancel => cancel
+                        .Then(ctx => Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})"))
+                        .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {
+                            OrderId = ctx.Saga.OrderId,
+                            Reason = "Max payment attempts reached",
+                            CancelledAt = DateTime.UtcNow
+                        }))
+                        .TransitionTo(Cancelled)
+                )
+            );
 
         During(PaymentCompleted,
             When(AddressValidatedEvent)
                 .Then(ctx => ctx.Saga.Address = ctx.Message.Address)
                 .TransitionTo(AddressValidated)
                 .Then(ctx => Console.WriteLine($"Saga: AddressValidated for {ctx.Saga.CorrelationId}"))
-                );
+            );
 
         During(AddressValidated,
             When(OrderShipped)
                 .TransitionTo(Shipped)
                 .Then(ctx => Console.WriteLine($"Saga: OrderShipped for {ctx.Saga.CorrelationId}"))
-                );
+            );
 
         During(Shipped,
             When(OrderDelivered)
                 .TransitionTo(Delivered)
                 .Then(ctx => Console.WriteLine($"Saga: OrderDelivered for {ctx.Saga.CorrelationId}"))
-                );
+            );
 
         DuringAny(
             When(OrderCancelled)
                 .TransitionTo(Cancelled)
                 .Then(ctx => Console.WriteLine($"Saga: OrderCancelled for {ctx.Saga.CorrelationId}"))
-                );
+            );
     }
 }
-
