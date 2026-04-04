@@ -28,8 +28,10 @@ public abstract class SagaTestBase : IAsyncLifetime
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
-        services.AddSingleton<IOrderSagaService, OrderSagaService>();
+services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
+        services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
+        services.AddSingleton<IOrderInitializService, OrderInitializService>();
+
 
         services.AddDbContext<AppDbContext>(o =>
             o.UseSqlite("Data Source=sagas.db")

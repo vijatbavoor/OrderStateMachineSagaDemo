@@ -11,16 +11,20 @@ using OrderStateMachineSagaDemo.StateMachines;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Logging.AddConsole(options => {
-    options.IncludeScopes = true;
-    options.TimestampFormat = "HH:mm:ss ";
+builder.Logging.AddConsole(formatterOptions => {
+    formatterOptions.IncludeScopes = true;
+    formatterOptions.TimestampFormat = "HH:mm:ss ";
 });
+
+
 
 
 
 // Payment retry policy — swap implementation here to change retry behaviour
 builder.Services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
-builder.Services.AddSingleton<IOrderSagaService, OrderSagaService>();
+builder.Services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
+builder.Services.AddSingleton<IOrderInitializService, OrderInitializService>();
+
 
 builder.Services.AddDbContext<AppDbContext>(o => 
     o.UseSqlite("Data Source=sagas.db")

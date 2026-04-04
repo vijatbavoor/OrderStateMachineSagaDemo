@@ -6,6 +6,7 @@ namespace OrderStateMachineSagaDemo.Services;
 
 public interface IPaymentRetryHandler
 {
-    Task HandleAsync(BehaviorContext<OrderState, IPaymentFailed> context);
+    Task RetryAsync(BehaviorContext<OrderState, IPaymentFailed> context);
+    Task CancelAsync(BehaviorContext<OrderState, IPaymentFailed> context);
 }
 

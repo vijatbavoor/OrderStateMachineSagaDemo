@@ -7,20 +7,16 @@ namespace OrderStateMachineSagaDemo.Services;
 
 public class PaymentRetryHandler : IPaymentRetryHandler
 {
-    public async Task HandleAsync(BehaviorContext<OrderState, IPaymentFailed> context)
+    public Task CancelAsync(BehaviorContext<OrderState, IPaymentFailed> context)
     {
-        context.Saga.PaymentAttempts++;
-        if (context.Saga.PaymentAttempts >= 3)
-        {
-            context.Saga.CurrentState = "Cancelled";
-            Console.WriteLine($"Saga: Payment max attempts -> Cancelled {context.Saga.CorrelationId} (attempts: {context.Saga.PaymentAttempts})");
-        }
-        else
-        {
-            context.Saga.CurrentState = "PaymentPending";
-            Console.WriteLine($"Saga: Payment fail #{context.Saga.PaymentAttempts} -> PaymentPending {context.Saga.CorrelationId}");
-        }
-        await Task.CompletedTask;
+        Console.WriteLine($"Saga: Payment max attempts -> Cancelled {context.Saga.CorrelationId} (attempts: {context.Saga.PaymentAttempts})");
+       return Task.CompletedTask;
+    }
+
+    public Task RetryAsync(BehaviorContext<OrderState, IPaymentFailed> context)
+    {
+        Console.WriteLine($"Saga: Payment fail #{context.Saga.PaymentAttempts} -> PaymentPending (retry) {context.Saga.CorrelationId}");
+        return Task.CompletedTask;
     }
 }
 

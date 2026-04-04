@@ -27,7 +27,7 @@ public class OrderStateMachine :
     public Event<IOrderDelivered> OrderDelivered { get; set; } = null!;
     public Event<IOrderCancelled> OrderCancelled { get; set; } = null!;
 
-    public OrderStateMachine(IPaymentRetryPolicy retryPolicy, IOrderSagaService sagaService)
+    public OrderStateMachine(IPaymentRetryPolicy retryPolicy, IPaymentRetryHandler paymentRetryHandler, IOrderInitializService sagaService)
     {
         InstanceState(x => x.CurrentState);
 
@@ -63,7 +63,7 @@ public class OrderStateMachine :
                 .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
-                .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
+                .Then(ctx => paymentRetryHandler.RetryAsync(ctx))
                 .TransitionTo(PaymentPending)
             );
 
@@ -73,16 +73,15 @@ public class OrderStateMachine :
                 .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
-                .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
                 .IfElse(
                     ctx => retryPolicy.ShouldRetry(ctx.Saga),
                     // ShouldRetry == true → stay in PaymentPending for next retry
                     retry => retry
-                        .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending (retry) {ctx.Saga.CorrelationId}"))
+                        .Then(ctx => paymentRetryHandler.RetryAsync(ctx))
                         .TransitionTo(PaymentPending),
                     // ShouldRetry == false → max retries reached, transition to Cancelled
                     cancel => cancel
-                        .Then(ctx => Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})"))
+                        .Then(ctx => paymentRetryHandler.CancelAsync(ctx))
                         .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {
                             OrderId = ctx.Saga.OrderId,
                             Reason = "Max payment attempts reached",
