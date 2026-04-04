@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using OrderStateMachineSagaDemo.Data;
 using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
 using OrderStateMachineSagaDemo.Models;
+using OrderStateMachineSagaDemo.Services;
 using OrderStateMachineSagaDemo.StateMachines;
 using Xunit;
 using System.Diagnostics;
@@ -26,6 +27,9 @@ public abstract class SagaTestBase : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var services = new ServiceCollection();
+
+        services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
+        services.AddSingleton<IOrderSagaService, OrderSagaService>();
 
         services.AddDbContext<AppDbContext>(o =>
             o.UseSqlite("Data Source=sagas.db")

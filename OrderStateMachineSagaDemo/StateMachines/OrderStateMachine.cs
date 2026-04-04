@@ -2,6 +2,7 @@ using MassTransit;
 using System;
 using OrderStateMachineSagaDemo.Contracts;
 using OrderStateMachineSagaDemo.Models;
+using OrderStateMachineSagaDemo.Services;
 
 namespace OrderStateMachineSagaDemo.StateMachines;
 
@@ -26,7 +27,7 @@ public class OrderStateMachine :
     public Event<IOrderDelivered> OrderDelivered { get; set; } = null!;
     public Event<IOrderCancelled> OrderCancelled { get; set; } = null!;
 
-    public OrderStateMachine()
+    public OrderStateMachine(IPaymentRetryPolicy retryPolicy, IOrderSagaService sagaService)
     {
         InstanceState(x => x.CurrentState);
 
@@ -41,22 +42,19 @@ public class OrderStateMachine :
 
         Initially(
             When(OrderCreated)
-                .Then(ctx => {
-                    ctx.Saga.CorrelationId = ctx.Message.OrderId;
-                    ctx.Saga.OrderId = ctx.Message.OrderId;
-                })
+                .Then(ctx => sagaService.InitializeOrder(ctx.Saga, ctx.Message))
                 .TransitionTo(Created)
-                .Then(ctx => Console.WriteLine($"Saga: Order Created for {ctx.Saga.CorrelationId}"))
             );
 
         During(Created,
             When(StockCheckedEvent)
-                .Then(ctx => {
-                    string status = ctx.Message.StockAvailable ? "OK" : "fail";
-                    string nextState = ctx.Message.StockAvailable ? "StockChecked" : "Cancelled";
-                    Console.WriteLine($"Saga: Stock {status} -> {nextState} for {ctx.Saga.CorrelationId}");
-                })
-                .TransitionTo(StockChecked)
+                .Then(ctx => sagaService.LogStockCheck(ctx.Saga, ctx.Message))
+                .IfElse(ctx => ctx.Message.StockAvailable,
+                    success => success
+                        .TransitionTo(StockChecked),
+                    fail => fail
+                        .TransitionTo(Cancelled)
+                )
             );
 
         During(StockChecked,
@@ -77,12 +75,12 @@ public class OrderStateMachine :
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
                 .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
                 .IfElse(
-                    ctx => ctx.Saga.PaymentAttempts < 3,
-                    // PaymentAttempts < 3 → stay in PaymentPending for next retry
+                    ctx => retryPolicy.ShouldRetry(ctx.Saga),
+                    // ShouldRetry == true → stay in PaymentPending for next retry
                     retry => retry
                         .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending (retry) {ctx.Saga.CorrelationId}"))
                         .TransitionTo(PaymentPending),
-                    // PaymentAttempts >= 3 → max retries reached, transition to Cancelled
+                    // ShouldRetry == false → max retries reached, transition to Cancelled
                     cancel => cancel
                         .Then(ctx => Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})"))
                         .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {

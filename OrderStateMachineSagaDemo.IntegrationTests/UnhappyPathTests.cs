@@ -119,6 +119,26 @@ public class UnhappyPathTests : SagaTestBase
         Assert.Equal("Cancelled", saga!.CurrentState);
         Assert.Equal(3, saga.PaymentAttempts);
     }
+
+    [Fact]
+    public async Task StockUnavailable_CancelsOrder()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+
+        // Start saga
+        await PublishEvent(new MockOrderCreated { OrderId = orderId, CreatedAt = DateTime.UtcNow });
+        await WaitForState(orderId, "Created");
+
+        // Stock Fail
+        await PublishEvent(new MockStockChecked { OrderId = orderId, StockAvailable = false, CheckedAt = DateTime.UtcNow });
+
+        // Assert: saga cancelled immediately
+        await WaitForState(orderId, "Cancelled", 15000);
+        var saga = await GetSagaState(orderId);
+        Assert.NotNull(saga);
+        Assert.Equal("Cancelled", saga!.CurrentState);
+    }
 }
 
 

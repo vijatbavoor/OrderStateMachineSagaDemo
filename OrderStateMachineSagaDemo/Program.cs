@@ -1,10 +1,11 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OrderStateMachineSagaDemo.Data;
 using OrderStateMachineSagaDemo.Models;
+using OrderStateMachineSagaDemo.Services;
 using OrderStateMachineSagaDemo.StateMachines;
 
 
@@ -16,6 +17,10 @@ builder.Logging.AddConsole(options => {
 });
 
 
+
+// Payment retry policy — swap implementation here to change retry behaviour
+builder.Services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
+builder.Services.AddSingleton<IOrderSagaService, OrderSagaService>();
 
 builder.Services.AddDbContext<AppDbContext>(o => 
     o.UseSqlite("Data Source=sagas.db")
