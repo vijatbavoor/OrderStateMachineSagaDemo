@@ -66,22 +66,7 @@ public class OrderStateMachine :
             When(PaymentFailed)
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
                 .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} for {ctx.Saga.CorrelationId}"))
-                .IfElse(
-                    ctx => ctx.Saga.PaymentAttempts < 3,
-                    // PaymentAttempts < 3 → retry by transitioning to PaymentPending
-                    retry => retry
-                        .Then(ctx => Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending (retry) {ctx.Saga.CorrelationId}"))
-                        .TransitionTo(PaymentPending),
-                    // PaymentAttempts >= 3 → max retries reached, transition to Cancelled
-                    cancel => cancel
-                        .Then(ctx => Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})"))
-                        .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {
-                            OrderId = ctx.Saga.OrderId,
-                            Reason = "Max payment attempts reached",
-                            CancelledAt = DateTime.UtcNow
-                        }))
-                        .TransitionTo(Cancelled)
-                )
+                .TransitionTo(PaymentPending)
             );
 
         During(PaymentPending,
