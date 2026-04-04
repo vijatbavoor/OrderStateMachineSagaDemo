@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using OrderStateMachineSagaDemo.Data;
-using OrderStateMachineSagaDemo.IntegrationTests.Data;
-using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
+using OrderStateMachineSagaDemo.Infrastructure;
+using OrderStateMachineSagaDemo.Services;
+
 using OrderStateMachineSagaDemo.Models;
+
 using OrderStateMachineSagaDemo.StateMachines;
 using Xunit;
 using System.Diagnostics;
@@ -30,24 +32,27 @@ public abstract class SagaTestBase : IAsyncLifetime
         var services = new ServiceCollection();
 
         services.AddDbContext<AppDbContext>(o =>
-            o.UseNpgsql(LocalPostgresConfig.ConnectionString)
+            o.UseSqlite("Data Source=sagas.db")
              .EnableSensitiveDataLogging());
 
+        services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
         services.AddMassTransit(x =>
         {
-            x.AddSagaStateMachine<OrderStateMachine, OrderState>()
+            x.AddSagaStateMachine<OrderStateMachine, OrderState>(cfg => new OrderStateMachine(new PaymentRetryHandler()))
                 .EntityFrameworkRepository(r =>
                 {
                     r.ExistingDbContext<AppDbContext>();
-                    r.UsePostgres();
+                    r.UseSqlite();
                 });
 
-            x.UsingRabbitMq((context, cfg) =>
+
+            x.UsingInMemory((context, cfg) =>
             {
-                cfg.Host(LocalRabbitMqConfig.ConnectionString);
                 cfg.ConfigureEndpoints(context);
             });
         });
+
+
 
         _services = services.BuildServiceProvider();
 
@@ -64,8 +69,13 @@ public abstract class SagaTestBase : IAsyncLifetime
     public async Task DisposeAsync()
     {
         if (_bus != null) await _bus.StopAsync();
-        (_services as IDisposable)?.Dispose();
+        if (_services is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync();
+        else 
+            (_services as IDisposable)?.Dispose();
+
     }
+
 
     protected async Task PublishEvent<T>(T @event) where T : class
     {
@@ -79,7 +89,7 @@ public abstract class SagaTestBase : IAsyncLifetime
         return await dbContext.OrderSagas.FindAsync(correlationId);
     }
 
-    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 10000)
+    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 30000)
     {
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)

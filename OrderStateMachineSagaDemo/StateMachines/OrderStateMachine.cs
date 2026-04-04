@@ -2,6 +2,7 @@ using MassTransit;
 using System;
 using OrderStateMachineSagaDemo.Contracts;
 using OrderStateMachineSagaDemo.Models;
+using OrderStateMachineSagaDemo.Services;
 
 namespace OrderStateMachineSagaDemo.StateMachines;
 
@@ -26,8 +27,12 @@ public class OrderStateMachine :
     public Event<IOrderDelivered> OrderDelivered { get; set; } = null!;
     public Event<IOrderCancelled> OrderCancelled { get; set; } = null!;
 
-    public OrderStateMachine()
+    private readonly IPaymentRetryHandler _paymentRetryHandler;
+
+    public OrderStateMachine(IPaymentRetryHandler paymentRetryHandler)
     {
+        _paymentRetryHandler = paymentRetryHandler;
+
         InstanceState(x => x.CurrentState);
 
         Event(() => OrderCreated, x => x.CorrelateById(ctx => ctx.Message.OrderId));
@@ -60,20 +65,11 @@ public class OrderStateMachine :
                 );
 
         During(StockChecked,
+            When(PaymentSucceeded)
+                .TransitionTo(PaymentCompleted)
+                .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
-                .Then(ctx => {
-                    ctx.Saga.PaymentAttempts++;
-                    if (ctx.Saga.PaymentAttempts >= 3)
-                    {
-                        ctx.Saga.CurrentState = "Cancelled";
-                        Console.WriteLine($"Saga: Payment max attempts -> Cancelled {ctx.Saga.CorrelationId} (attempts: {ctx.Saga.PaymentAttempts})");
-                    }
-                    else
-                    {
-                        ctx.Saga.CurrentState = "PaymentPending";
-                        Console.WriteLine($"Saga: Payment fail #{ctx.Saga.PaymentAttempts} -> PaymentPending {ctx.Saga.CorrelationId}");
-                    }
-                })
+                .ThenAsync(async ctx => await _paymentRetryHandler.HandleAsync(ctx))
                 );
 
         During(PaymentPending,
@@ -108,3 +104,4 @@ public class OrderStateMachine :
                 );
     }
 }
+
