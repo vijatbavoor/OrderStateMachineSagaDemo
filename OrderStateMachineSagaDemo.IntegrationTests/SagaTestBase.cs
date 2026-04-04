@@ -1,15 +1,11 @@
 using MassTransit;
-// using MassTransit.Testing; // Removed for v9 compatibility
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using OrderStateMachineSagaDemo.Data;
-using OrderStateMachineSagaDemo.Infrastructure;
-using OrderStateMachineSagaDemo.Services;
-
+using OrderStateMachineSagaDemo.IntegrationTests.Fixtures;
 using OrderStateMachineSagaDemo.Models;
-
 using OrderStateMachineSagaDemo.StateMachines;
 using Xunit;
 using System.Diagnostics;
@@ -35,24 +31,20 @@ public abstract class SagaTestBase : IAsyncLifetime
             o.UseSqlite("Data Source=sagas.db")
              .EnableSensitiveDataLogging());
 
-        services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
         services.AddMassTransit(x =>
         {
-            x.AddSagaStateMachine<OrderStateMachine, OrderState>(cfg => new OrderStateMachine(new PaymentRetryHandler()))
+            x.AddSagaStateMachine<OrderStateMachine, OrderState>()
                 .EntityFrameworkRepository(r =>
                 {
                     r.ExistingDbContext<AppDbContext>();
                     r.UseSqlite();
                 });
 
-
             x.UsingInMemory((context, cfg) =>
             {
                 cfg.ConfigureEndpoints(context);
             });
         });
-
-
 
         _services = services.BuildServiceProvider();
 
@@ -73,9 +65,7 @@ public abstract class SagaTestBase : IAsyncLifetime
             await asyncDisposable.DisposeAsync();
         else 
             (_services as IDisposable)?.Dispose();
-
     }
-
 
     protected async Task PublishEvent<T>(T @event) where T : class
     {
@@ -89,7 +79,7 @@ public abstract class SagaTestBase : IAsyncLifetime
         return await dbContext.OrderSagas.FindAsync(correlationId);
     }
 
-    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 30000)
+    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 10000)
     {
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
@@ -102,3 +92,4 @@ public abstract class SagaTestBase : IAsyncLifetime
         throw new TimeoutException($"Saga did not reach state '{expectedState}' in {timeoutMs}ms");
     }
 }
+
