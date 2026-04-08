@@ -1,6 +1,8 @@
 using OrderStateMachineSagaDemo.Contracts;
 using OrderStateMachineSagaDemo.Models;
 using System;
+using MassTransit;
+using System.Threading.Tasks;
 
 namespace OrderStateMachineSagaDemo.Services;
 
@@ -21,5 +23,10 @@ public class OrderInitializService : IOrderInitializService
         string status = message.StockAvailable ? "OK" : "fail";
         string nextState = message.StockAvailable ? "StockChecked" : "Cancelled";
         Console.WriteLine($"Saga: Stock {status} -> {nextState} for {saga.CorrelationId}");
+    }
+
+    public Task PublishNextStockCheckedAsync(BehaviorContext<OrderState, IOrderCreated> ctx)
+    {
+        return ctx.Publish<IStockChecked>(new { OrderId = ctx.Saga.CorrelationId, StockAvailable = true, CheckedAt = DateTime.UtcNow });
     }
 }

@@ -86,7 +86,6 @@ public abstract class AutoSagaTestBase : IAsyncLifetime
             var saga = await GetSagaState(orderId);
             if (saga != null && saga.CurrentState == expectedState)
                 return;
-            await Task.Delay(10);
         }
         throw new TimeoutException($"Saga did not reach state '{expectedState}' in {timeoutMs}ms");
     }

@@ -44,8 +44,7 @@ public class OrderStateMachine :
             When(OrderCreated)
                 .Then(ctx => sagaService.InitializeOrder(ctx.Saga, ctx.Message))
                 .TransitionTo(Created)
-                .Then(ctx => Task.Delay(1500))
-                .PublishAsync(ctx => ctx.Init<IStockChecked>(new { OrderId = ctx.Saga.CorrelationId, StockAvailable = true, CheckedAt = DateTime.UtcNow }))
+                .ThenAsync(ctx => sagaService.PublishNextStockCheckedAsync(ctx))
             );
 
         During(Created,
@@ -54,7 +53,6 @@ public class OrderStateMachine :
                 .IfElse(ctx => ctx.Message.StockAvailable,
                     success => success
                         .TransitionTo(StockChecked)
-                        .Then(ctx => Task.Delay(1500))
                         .PublishAsync(ctx => ctx.Init<IPaymentProcessed>(new { OrderId = ctx.Saga.CorrelationId, TransactionId = $"txn-{ctx.Saga.CorrelationId:N}", ProcessedAt = DateTime.UtcNow })),
 
                     fail => fail
