@@ -1,12 +1,13 @@
 using MassTransit;
 using System;
+using System.Threading.Tasks;
 using OrderStateMachineSagaDemo.Contracts;
 using OrderStateMachineSagaDemo.Models;
 using OrderStateMachineSagaDemo.Services;
 
-namespace OrderStateMachineSagaDemo.StateMachines;
+namespace OrderStateMachineSagaDemo.IntegrationTests;
 
-public class OrderStateMachine : 
+public class TestOrderStateMachine : 
     MassTransitStateMachine<OrderState>
 {
     public State Created { get; set; } = null!;
@@ -27,7 +28,7 @@ public class OrderStateMachine :
     public Event<IOrderDelivered> OrderDelivered { get; set; } = null!;
     public Event<IOrderCancelled> OrderCancelled { get; set; } = null!;
 
-    public OrderStateMachine(IPaymentRetryPolicy retryPolicy, IPaymentRetryHandler paymentRetryHandler, IOrderInitializService sagaService)
+    public TestOrderStateMachine(IPaymentRetryPolicy retryPolicy, IPaymentRetryHandler paymentRetryHandler, IOrderInitializService sagaService)
     {
         InstanceState(x => x.CurrentState);
 
@@ -44,8 +45,6 @@ public class OrderStateMachine :
             When(OrderCreated)
                 .Then(ctx => sagaService.InitializeOrder(ctx.Saga, ctx.Message))
                 .TransitionTo(Created)
-                .Then(ctx => Task.Delay(1500))
-                .PublishAsync(ctx => ctx.Init<IStockChecked>(new { OrderId = ctx.Saga.CorrelationId, StockAvailable = true, CheckedAt = DateTime.UtcNow }))
             );
 
         During(Created,
@@ -53,10 +52,7 @@ public class OrderStateMachine :
                 .Then(ctx => sagaService.LogStockCheck(ctx.Saga, ctx.Message))
                 .IfElse(ctx => ctx.Message.StockAvailable,
                     success => success
-                        .TransitionTo(StockChecked)
-                        .Then(ctx => Task.Delay(1500))
-                        .PublishAsync(ctx => ctx.Init<IPaymentProcessed>(new { OrderId = ctx.Saga.CorrelationId, TransactionId = $"txn-{ctx.Saga.CorrelationId:N}", ProcessedAt = DateTime.UtcNow })),
-
+                        .TransitionTo(StockChecked),
                     fail => fail
                         .TransitionTo(Cancelled)
                 )
@@ -65,7 +61,6 @@ public class OrderStateMachine :
         During(StockChecked,
             When(PaymentSucceeded)
                 .TransitionTo(PaymentCompleted)
-                .PublishAsync(ctx => ctx.Init<IAddressValidated>(new { OrderId = ctx.Saga.CorrelationId, Address = "123 Default St", ValidatedAt = DateTime.UtcNow }))
                 .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
@@ -76,17 +71,14 @@ public class OrderStateMachine :
         During(PaymentPending,
             When(PaymentSucceeded)
                 .TransitionTo(PaymentCompleted)
-                .PublishAsync(ctx => ctx.Init<IAddressValidated>(new { OrderId = ctx.Saga.CorrelationId, Address = "123 Default St", ValidatedAt = DateTime.UtcNow }))
                 .Then(ctx => Console.WriteLine($"Saga: PaymentCompleted for {ctx.Saga.CorrelationId}")),
             When(PaymentFailed)
                 .Then(ctx => ctx.Saga.PaymentAttempts++)
                 .IfElse(
                     ctx => retryPolicy.ShouldRetry(ctx.Saga),
-                    // ShouldRetry == true → stay in PaymentPending for next retry
                     retry => retry
                         .Then(ctx => paymentRetryHandler.RetryAsync(ctx))
                         .TransitionTo(PaymentPending),
-                    // ShouldRetry == false → max retries reached, transition to Cancelled
                     cancel => cancel
                         .Then(ctx => paymentRetryHandler.CancelAsync(ctx))
                         .PublishAsync(ctx => ctx.Init<IOrderCancelled>(new MockOrderCancelled {
@@ -102,14 +94,12 @@ public class OrderStateMachine :
             When(AddressValidatedEvent)
                 .Then(ctx => ctx.Saga.Address = ctx.Message.Address)
                 .TransitionTo(AddressValidated)
-                .PublishAsync(ctx => ctx.Init<IOrderShipped>(new { OrderId = ctx.Saga.CorrelationId, TrackingNumber = $"TRK-{ctx.Saga.CorrelationId:N}", ShippedAt = DateTime.UtcNow }))
                 .Then(ctx => Console.WriteLine($"Saga: AddressValidated for {ctx.Saga.CorrelationId}"))
             );
 
         During(AddressValidated,
             When(OrderShipped)
                 .TransitionTo(Shipped)
-                .PublishAsync(ctx => ctx.Init<IOrderDelivered>(new { OrderId = ctx.Saga.CorrelationId, DeliveredAt = DateTime.UtcNow }))
                 .Then(ctx => Console.WriteLine($"Saga: OrderShipped for {ctx.Saga.CorrelationId}"))
             );
 
@@ -126,3 +116,4 @@ public class OrderStateMachine :
             );
     }
 }
+

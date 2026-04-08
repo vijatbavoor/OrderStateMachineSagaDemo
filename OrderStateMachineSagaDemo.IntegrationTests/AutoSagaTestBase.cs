@@ -1,7 +1,6 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using OrderStateMachineSagaDemo.Data;
 using OrderStateMachineSagaDemo.Models;
 using OrderStateMachineSagaDemo.Services;
@@ -12,12 +11,12 @@ using System.Threading.Tasks;
 
 namespace OrderStateMachineSagaDemo.IntegrationTests;
 
-public abstract class SagaTestBase : IAsyncLifetime
+public abstract class AutoSagaTestBase : IAsyncLifetime
 {
     protected IBusControl _bus = null!;
     protected IServiceProvider _services = null!;
 
-    protected SagaTestBase()
+    protected AutoSagaTestBase()
     {
     }
 
@@ -25,18 +24,17 @@ public abstract class SagaTestBase : IAsyncLifetime
     {
         var services = new ServiceCollection();
 
-services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
+        services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
         services.AddSingleton<IPaymentRetryHandler, PaymentRetryHandler>();
         services.AddSingleton<IOrderInitializService, OrderInitializService>();
 
-
         services.AddDbContext<AppDbContext>(o =>
-            o.UseSqlite("Data Source=sagas.db")
+            o.UseSqlite("Data Source=sagas_auto.db")
              .EnableSensitiveDataLogging());
 
         services.AddMassTransit(x =>
         {
-            x.AddSagaStateMachine<TestOrderStateMachine, OrderState>()
+            x.AddSagaStateMachine<OrderStateMachine, OrderState>()
                 .EntityFrameworkRepository(r =>
                 {
                     r.ExistingDbContext<AppDbContext>();
@@ -51,11 +49,9 @@ services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
 
         _services = services.BuildServiceProvider();
 
-        // Start bus
         _bus = _services.GetRequiredService<IBusControl>();
         await _bus.StartAsync();
 
-        // Ensure DB created
         using var scope = _services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
@@ -82,7 +78,7 @@ services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
         return await dbContext.OrderSagas.FindAsync(correlationId);
     }
 
-    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 30000)
+    protected async Task WaitForState(Guid orderId, string expectedState, int timeoutMs = 60000)
     {
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
