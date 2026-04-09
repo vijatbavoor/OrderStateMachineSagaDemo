@@ -27,7 +27,9 @@ public class OrderInitializService : IOrderInitializService
 
     public Task PublishNextStockCheckedAsync(BehaviorContext<OrderState, IOrderCreated> ctx)
     {
-        return ctx.Publish<IStockChecked>(new { OrderId = ctx.Saga.CorrelationId, StockAvailable = true, CheckedAt = DateTime.UtcNow });
+        var idBytes = ctx.Saga.OrderId.ToByteArray();
+        bool isStockAvailable = (idBytes.Length > 0 && (idBytes[15] % 2 == 0));
+        return ctx.Publish<IStockChecked>(new { OrderId = ctx.Saga.CorrelationId, StockAvailable = isStockAvailable, CheckedAt = DateTime.UtcNow });
     }
 
     public Task PublishPaymentResultAsync(BehaviorContext<OrderState, IStockChecked> ctx)

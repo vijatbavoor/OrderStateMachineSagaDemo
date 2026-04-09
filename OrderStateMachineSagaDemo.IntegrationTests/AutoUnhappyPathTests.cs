@@ -6,9 +6,9 @@ namespace OrderStateMachineSagaDemo.IntegrationTests;
 public class AutoUnhappyPathTests : AutoSagaTestBase
 {
     [Fact]
-    public async Task AutoStockFail_CancelsOrder()
+    public async Task CancelsOrder_When_StockIsNotAvailable()
     {
-        var orderId = NewMethod();
+        var orderId = GetGuid(false);
 
         await PublishEvent(new MockOrderCreated { OrderId = orderId, CreatedAt = DateTime.UtcNow });
 
@@ -17,9 +17,10 @@ public class AutoUnhappyPathTests : AutoSagaTestBase
         var saga = await GetSagaState(orderId);
         Assert.NotNull(saga);
         Assert.Equal("Cancelled", saga.CurrentState);
+         Assert.Equal(0, saga.PaymentAttempts);
     }
 
-    private static Guid NewMethod()
+    private static Guid GetGuid(bool stockAvailable = true)
     {
         Guid orderId = Guid.NewGuid();
 
@@ -29,15 +30,26 @@ public class AutoUnhappyPathTests : AutoSagaTestBase
         // Update the first element
         bytes[0] = 1;
 
+        if (stockAvailable)
+        {
+            // Set the last byte to an even value to indicate stock available
+            bytes[15] = 2; // Even value
+        }
+        else
+        {
+            // Set the last byte to an odd value to indicate stock not available
+            bytes[15] = 1; // Odd value
+        }
+
         // Create a new Guid with the modified bytes
         orderId = new Guid(bytes);
         return orderId;
     }
 
     [Fact]
-    public async Task AutoPaymentFail3_CancelsOrder()
+    public async Task CancelsOrder_When_PaymentFails_For_3_Times()
     {
-        var orderId = NewMethod();
+        var orderId = GetGuid();
 
         await PublishEvent(new MockOrderCreated { OrderId = orderId, CreatedAt = DateTime.UtcNow });
 
