@@ -13,4 +13,5 @@ public interface IOrderInitializService
     void InitializeOrder(OrderState saga, IOrderCreated message);
     void LogStockCheck(OrderState saga, IStockChecked message);
     Task PublishNextStockCheckedAsync(BehaviorContext<OrderState, IOrderCreated> ctx);
+    Task PublishPaymentResultAsync(BehaviorContext<OrderState, IStockChecked> ctx);
 }

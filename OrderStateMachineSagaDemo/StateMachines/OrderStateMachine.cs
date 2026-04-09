@@ -53,8 +53,7 @@ public class OrderStateMachine :
                 .IfElse(ctx => ctx.Message.StockAvailable,
                     success => success
                         .TransitionTo(StockChecked)
-                        .PublishAsync(ctx => ctx.Init<IPaymentProcessed>(new { OrderId = ctx.Saga.CorrelationId, TransactionId = $"txn-{ctx.Saga.CorrelationId:N}", ProcessedAt = DateTime.UtcNow })),
-
+                        .ThenAsync(ctx => sagaService.PublishPaymentResultAsync(ctx)),
                     fail => fail
                         .TransitionTo(Cancelled)
                 )

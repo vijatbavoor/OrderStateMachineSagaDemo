@@ -31,12 +31,12 @@ services.AddSingleton<IPaymentRetryPolicy, PaymentRetryPolicy>();
 
 
         services.AddDbContext<AppDbContext>(o =>
-            o.UseSqlite("Data Source=sagas.db")
+            o.UseSqlite("Data Source=Saga.db")
              .EnableSensitiveDataLogging());
 
         services.AddMassTransit(x =>
         {
-            x.AddSagaStateMachine<TestOrderStateMachine, OrderState>()
+            x.AddSagaStateMachine<OrderStateMachine, OrderState>()
                 .EntityFrameworkRepository(r =>
                 {
                     r.ExistingDbContext<AppDbContext>();

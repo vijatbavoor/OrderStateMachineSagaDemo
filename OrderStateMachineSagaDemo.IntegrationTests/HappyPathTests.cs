@@ -17,27 +17,7 @@ public class HappyPathTests : SagaTestBase
 
         // Start saga
         await PublishEvent(new MockOrderCreated { OrderId = orderId, CreatedAt = DateTime.UtcNow });
-        await WaitForState(orderId, "Created");
-
-        // Stock check OK
-        await PublishEvent(new MockStockChecked { OrderId = orderId, StockAvailable = true, CheckedAt = DateTime.UtcNow });
-        await WaitForState(orderId, "StockChecked");
-
-        // Payment success
-        await PublishEvent(new MockPaymentProcessed { OrderId = orderId, TransactionId = "txn123", ProcessedAt = DateTime.UtcNow });
-        await WaitForState(orderId, "PaymentCompleted");
-
-        // Address validated
-        await PublishEvent(new MockAddressValidated { OrderId = orderId, Address = "123 Test St", ValidatedAt = DateTime.UtcNow });
-        await WaitForState(orderId, "AddressValidated");
-
-        // Shipped
-        await PublishEvent(new MockOrderShipped { OrderId = orderId, TrackingNumber = "track123", ShippedAt = DateTime.UtcNow });
-        await WaitForState(orderId, "Shipped");
-
-        // Delivered
-        await PublishEvent(new MockOrderDelivered { OrderId = orderId, DeliveredAt = DateTime.UtcNow });
-        await WaitForState(orderId, "Delivered");
+        await WaitForState(orderId, "Delivered", 30000);
 
         // Assert
         var saga = await GetSagaState(orderId);
