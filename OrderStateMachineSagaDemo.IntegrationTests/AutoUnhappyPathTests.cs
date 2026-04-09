@@ -1,9 +1,10 @@
 using OrderStateMachineSagaDemo.Contracts;
+using OrderStateMachineSagaDemo.IntegrationTests.Mocks;
 using Xunit;
 
 namespace OrderStateMachineSagaDemo.IntegrationTests;
 
-public class AutoUnhappyPathTests : AutoSagaTestBase
+public class AutoUnhappyPathTests : SagaTestBase
 {
     [Fact]
     public async Task CancelsOrder_When_StockIsNotAvailable()
